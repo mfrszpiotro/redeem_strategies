@@ -14,8 +14,9 @@ Points = NewType("Points", Decimal)
 
 
 class CountryCode(str, Enum):
-    FR = "FR"
-    DE = "DE"
+    France = "FR"
+    Germany = "DE"
+    India = "IN"
 
 
 class PaymentGateway:
@@ -89,6 +90,18 @@ class GiftCard(RedemptionStrategy):
         )
 
 
+class CinemaTickets(RedemptionStrategy):
+    def _process_points(
+        self,
+        payment_gateway: Optional[PaymentGateway],
+        account_no: Optional[AccountNo],
+    ):
+        print(
+            f"Here are your cinema tickets (quantity: {self.award_amount}) "
+            f"for {self.required_points} points. Enjoy the silver screen experience!"
+        )
+
+
 class User:
     def __init__(
         self,
@@ -120,6 +133,7 @@ class RedemptionService:
 
 
 COUNTRY_STRATEGY_CONFIG: Dict[CountryCode, RedemptionStrategy] = {
-    CountryCode.DE: BankTransfer(Points(Decimal(1000)), Decimal(50)),
-    CountryCode.FR: GiftCard(Points(Decimal(2000)), Decimal(100)),
+    CountryCode.Germany: BankTransfer(Points(Decimal(1000)), Decimal(50)),
+    CountryCode.France: GiftCard(Points(Decimal(2000)), Decimal(100)),
+    CountryCode.India: CinemaTickets(Points(Decimal(500)), Decimal(2)),
 }

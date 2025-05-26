@@ -32,7 +32,7 @@ class TestRedemptionService(TestCase):
         self.redemption_service = RedemptionService(
             payment_gateway=self.payment_gateway,
         )
-        self.exemplary_country_code = CountryCode.DE
+        self.exemplary_country_code = CountryCode.Germany
         self.exemplary_user = UserFactory.create(self.exemplary_country_code)
 
     def test_logs_user_redemption(self) -> None:
@@ -73,7 +73,9 @@ class TestRedemptionService(TestCase):
                     )
 
     def test_strategy_bank_transfer_using_payment_gateway(self) -> None:
-        user = UserFactory.create(CountryCode.DE)  # country that uses bank transfer
+        user = UserFactory.create(
+            CountryCode.Germany
+        )  # country that uses bank transfer
         user.points = user.redemption_strategy.required_points
         self.redemption_service.redeem(user)
         assert isinstance(user.redemption_strategy, BankTransfer)
@@ -82,7 +84,13 @@ class TestRedemptionService(TestCase):
         )
 
     def test_strategy_gift_card_not_using_payment_gateway(self) -> None:
-        user = UserFactory.create(CountryCode.FR)  # country that uses gift card
+        user = UserFactory.create(CountryCode.France)  # country that uses gift card
+        user.points = user.redemption_strategy.required_points
+        self.redemption_service.redeem(user)
+        self.payment_gateway.transfer.assert_not_called()
+
+    def test_strategy_cinema_tickets_not_using_payment_gateway(self) -> None:
+        user = UserFactory.create(CountryCode.India)  # country that uses cinema tickets
         user.points = user.redemption_strategy.required_points
         self.redemption_service.redeem(user)
         self.payment_gateway.transfer.assert_not_called()
@@ -90,7 +98,7 @@ class TestRedemptionService(TestCase):
 
 class TestPaymentGateway(TestCase):
     def test_has_transfer_method(self) -> None:
-        account_no = UserFactory.create(CountryCode.DE).account_no
+        account_no = UserFactory.create(CountryCode.Germany).account_no
         with self.assertLogs(logger=logger) as log:
             PaymentGateway().transfer(account_no, Points(Decimal(100)))
         self.assertIn(
