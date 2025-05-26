@@ -34,29 +34,43 @@ class TestRedemptionService(TestCase):
         )
         self.exemplary_country_code = CountryCode.DE
         self.exemplary_user = UserFactory.create(self.exemplary_country_code)
-        self.exemplary_sufficient_points = (
-            self.exemplary_user.redemption_strategy.required_points
-        )
-        self.exemplary_insufficient_points = Points(
-            self.exemplary_sufficient_points - 1
-        )
 
     def test_logs_user_redemption(self) -> None:
+        parameterized = [
+            (
+                None,
+                f"Not enough points, got {0} "
+                f"out of {self.exemplary_user.redemption_strategy.required_points}",
+            ),
+            (
+                self.exemplary_user.redemption_strategy.required_points + 10,
+                f"Redeemed {self.exemplary_user.redemption_strategy.required_points} "
+                f"points, for user {self.exemplary_user.id}",
+            ),
+            (
+                None,
+                f"Not enough points, got {10} "
+                f"out of {self.exemplary_user.redemption_strategy.required_points}",
+            ),
+            (
+                self.exemplary_user.redemption_strategy.required_points - 1,
+                f"Not enough points, got "
+                f"{self.exemplary_user.redemption_strategy.required_points - 1} "
+                f"out of {self.exemplary_user.redemption_strategy.required_points}",
+            ),
+        ]
         with self.assertLogs(logger=logger) as log:
-            self.exemplary_user.points = self.exemplary_sufficient_points
-            self.redemption_service.redeem(self.exemplary_user)
-            self.exemplary_user.points = self.exemplary_insufficient_points
-            self.redemption_service.redeem(self.exemplary_user)
-        self.assertIn(
-            f"Redeemed {self.exemplary_sufficient_points} points, "
-            f"for user {self.exemplary_user.id}",
-            log.output[0],
-        )
-        self.assertIn(
-            f"Not enough points, got {self.exemplary_user.points} "
-            f"out of {self.exemplary_sufficient_points}",
-            log.output[1],
-        )
+            for points, expected_result in parameterized:
+                print(points, self.exemplary_user.points)
+                self.exemplary_user.points = Points(
+                    points if points is not None else self.exemplary_user.points
+                )
+                with self.subTest(expected_result):
+                    self.redemption_service.redeem(self.exemplary_user)
+                    self.assertIn(
+                        expected_result,
+                        log.output[-1],
+                    )
 
     def test_strategy_bank_transfer_using_payment_gateway(self) -> None:
         user = UserFactory.create(CountryCode.DE)  # country that uses bank transfer

@@ -25,28 +25,34 @@ class PaymentGateway:
 
 class RedemptionStrategy(ABC):
     required_points: Points
+    award_amount: Decimal
+
+    def __init__(self, required_points: Points, award_amount: Decimal):
+        self.required_points = required_points
+        self.award_amount = award_amount
 
     def redeem_points(
         self,
         points: Points,
         payment_gateway: Optional[PaymentGateway],
         account_no: Optional[AccountNo],
-    ):
+    ) -> bool:
         if self._check_sufficient_points(points):
-            self._process_points(points, payment_gateway, account_no)
+            self._process_points(payment_gateway, account_no)
+            return True
+        return False
 
     def _check_sufficient_points(self, points: Points) -> bool:
-        predicate = points >= self.required_points
-        if not predicate:
+        if not points >= self.required_points:
             logger.info(
                 f"Not enough points, got {points} out of {self.required_points}"
             )
-        return predicate
+            return False
+        return True
 
     @abstractmethod
     def _process_points(
         self,
-        points: Points,
         payment_gateway: Optional[PaymentGateway],
         account_no: Optional[AccountNo],
     ): ...
@@ -56,38 +62,30 @@ class BankTransfer(RedemptionStrategy):
     class MissingPaymentDetailsException(Exception):
         pass
 
-    def __init__(self, required_points: Points, award_amount: Decimal):
-        self.required_points = required_points
-        self.award_amount = award_amount
-
     def _process_points(
         self,
-        points: Points,
         payment_gateway: Optional[PaymentGateway],
         account_no: Optional[AccountNo],
     ):
         if payment_gateway and account_no:
             payment_gateway.transfer(account_no, self.award_amount)
             print(
-                f"We've sent a transfer to your account "
-                f"for {self.award_amount}. Don't spend it all at once!"
+                f"We've sent a transfer to your account {self.award_amount}$ "
+                f"for {self.required_points} points. Don't spend it all at once!"
             )
         else:
             raise self.MissingPaymentDetailsException()
 
 
 class GiftCard(RedemptionStrategy):
-    def __init__(self, required_points: Points):
-        self.required_points = required_points
-
     def _process_points(
         self,
-        points: Points,
         payment_gateway: Optional[PaymentGateway],
         account_no: Optional[AccountNo],
     ):
         print(
-            f"Here is your gift card for redeeming your {points} points. Use it wisely!"
+            f"Here is your gift card (amount: {self.award_amount}$) "
+            f"for {self.required_points} points. Use it wisely!"
         )
 
 
@@ -112,13 +110,16 @@ class RedemptionService:
         self._payment_gateway = payment_gateway
 
     def redeem(self, user: User) -> None:
-        user.redemption_strategy.redeem_points(
+        if user.redemption_strategy.redeem_points(
             user.points, self._payment_gateway, user.account_no
-        )
-        logger.info(f"Redeemed {user.points} points, for user {user.id}")
+        ):
+            price = user.redemption_strategy.required_points
+            user.points = Points(user.points - price)
+            print(f"Your point account balance after this redemption: {user.points}")
+            logger.info(f"Redeemed {price} points, for user {user.id}")
 
 
 COUNTRY_STRATEGY_CONFIG: Dict[CountryCode, RedemptionStrategy] = {
     CountryCode.DE: BankTransfer(Points(Decimal(1000)), Decimal(50)),
-    CountryCode.FR: GiftCard(Points(Decimal(2000))),
+    CountryCode.FR: GiftCard(Points(Decimal(2000)), Decimal(100)),
 }
